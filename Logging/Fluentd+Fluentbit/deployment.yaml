@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: service
+  namespace: app
+  labels:
+    app: service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: service
+  template:
+    metadata:
+      labels:
+        app: service
+    spec:
+      containers:
+        - name: service-conatiner
+          image: 362708816803.dkr.ecr.ap-northeast-2.amazonaws.com/service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+              name: http
+          volumeMounts:
+            - name: log-volume
+              mountPath: /log
+        - name: fluent-bit-cnt
+          image: fluent/fluent-bit:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 2020
+              name: metrics
+              protocol: TCP
+          volumeMounts:
+            - name: config-volume
+              mountPath: /fluent-bit/etc/
+            - name: log-volume
+              mountPath: /log
+      volumes:
+        - name: log-volume
+          emptyDir: {}
+        - name: config-volume
+          configMap:
+            name: fluent-bit-sidecar-config

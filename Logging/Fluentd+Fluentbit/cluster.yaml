@@ -1,0 +1,29 @@
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: skills-eks-cluster
+  version: "1.29"
+  region: ap-northeast-2
+
+cloudWatch:
+  clusterLogging:
+    enableTypes: ["*"]
+
+vpc:
+  subnets:
+    public:
+      ap-northeast-2a: { id: public_a }
+      ap-northeast-2b: { id: public_b }
+    private:
+      ap-northeast-2a: { id: private_a }
+      ap-northeast-2b: { id: private_b }
+
+managedNodeGroups:
+  - name: skills-app-nodegroup
+    instanceName: skills-app-node
+    instanceType: c5.large
+    desiredCapacity: 2
+    minSize: 2
+    maxSize: 20
+    privateNetworking: true

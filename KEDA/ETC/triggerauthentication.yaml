@@ -1,0 +1,9 @@
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: keda-trigger-auth-aws-credentials
+spec:
+  secretTargetRef:
+    - parameter: awsRoleArn
+      name: admin-secrets
+      key: AWS_ROLE_ARN

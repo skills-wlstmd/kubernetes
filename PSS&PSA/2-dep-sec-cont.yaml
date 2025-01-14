@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test
+  namespace: policy-test
+  labels:
+    app: test
+    owner: jimmy
+    env: dev
+    billing: lob-cc
+spec:
+  selector:
+    matchLabels:
+      app: test
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 5
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app: test
+        owner: jimmy
+        env: dev
+        billing: lob-cc
+    spec:
+      containers:
+        - name: test
+          image: public.ecr.aws/r2l1x4g2/go-http-server:v0.1.0-23ffe0a715
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          resources:
+            limits:
+              cpu: 200m
+              memory: 20Mi
+            requests:
+              cpu: 100m
+              memory: 10Mi
+          readinessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          volumeMounts:
+            - mountPath: /tmp
+              name: tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+# restricted 실패
+# - 경고 메시지: restricted 프로파일의 요구사항을 충족하지 않음.
+# - 허용됨: Deployment는 Pod와 달리 경고 메시지를 출력하지만 생성이 허용됨.

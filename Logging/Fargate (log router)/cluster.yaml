@@ -1,0 +1,44 @@
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: skills-eks-cluster
+  version: "1.30"
+  region: ap-northeast-2
+
+cloudWatch:
+  clusterLogging:
+    enableTypes: ["*"]
+
+iam:
+  withOIDC: true
+  serviceAccounts:
+    - metadata:
+        name: aws-load-balancer-controller
+        namespace: kube-system
+      wellKnownPolicies:
+        awsLoadBalancerController: true
+
+vpc:
+  subnets:
+    public:
+      ap-northeast-a: { id: subnet-0231627a6d6505540 }
+      ap-northeast-b: { id: subnet-00144a98670cbb037 }
+    private:
+      ap-northeast-a: { id: subnet-08807612b1a078904 }
+      ap-northeast-b: { id: subnet-042a2daa15c16e733 }
+
+managedNodeGroups:
+  - name: skills-eks-app-nodegroup
+    instanceName: skills-eks-app-node
+    instanceType: c5.large
+    desiredCapacity: 2
+    minSize: 2
+    maxSize: 10
+
+fargateProfiles:
+  - name: skills-eks-app-profile
+    selectors:
+      - namespace: skills
+        labels:
+          app: skills-app

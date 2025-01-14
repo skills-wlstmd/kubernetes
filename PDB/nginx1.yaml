@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: wlstmd
+  name: wlstmd-nginx1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: wlstmd
+  template:
+    metadata:
+      labels:
+        app: wlstmd
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: key
+                    operator: In
+                    values:
+                      - worker1
+      containers:
+        - image: nginx
+          name: nginx
+          ports:
+            - containerPort: 80

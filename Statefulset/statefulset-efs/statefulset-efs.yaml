@@ -1,0 +1,48 @@
+---
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: efs-storage
+provisioner: efs.csi.aws.com
+parameters:
+  provisioningMode: efs-app
+  fileSystemId: EFS_ID
+  directoryPerms: "777"
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: efs-app-sts
+spec:
+  selector:
+    matchLabels:
+      app: test-efs
+  serviceName: efs-app
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: test-efs
+    spec:
+      terminationGracePeriodSeconds: 10
+      containers:
+        - name: linux
+          image: amazonlinux:2
+          command: ["/bin/sh"]
+          args:
+            [
+              "-c",
+              "while true; do echo $(date -u) >> /efs-data/out.txt; sleep 5; done",
+            ]
+          volumeMounts:
+            - name: efs-storage
+              mountPath: /efs-data
+  volumeClaimTemplates:
+    - metadata:
+        name: efs-storage
+      spec:
+        accessModes: [ReadWriteMany]
+        storageClassName: efs-storage
+        resources:
+          requests:
+            storage: 1Gi

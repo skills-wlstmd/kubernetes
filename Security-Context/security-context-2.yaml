@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: security-context-demo-2
+spec:
+  securityContext:
+    runAsUser: 1000 # pod 전역설정
+  containers:
+    - name: sec-ctx-demo-2
+      image: gcr.io/google-samples/node-hello:1.0
+      securityContext:
+        runAsUser: 2000 # 내부 설정이 우선이 됨
+        allowPrivilegeEscalation: false

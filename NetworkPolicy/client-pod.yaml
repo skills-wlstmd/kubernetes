@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: client-pod
+  namespace: network-policy-demo
+  labels:
+    app: client
+spec:
+  containers:
+    - name: client
+      image: alpine
+      command: ["/bin/sh", "-c", "sleep 3600"]

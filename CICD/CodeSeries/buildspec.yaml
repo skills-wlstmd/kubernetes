@@ -1,0 +1,31 @@
+version: 0.2
+run-as: root
+
+phases:
+  install:
+    commands:
+      - echo install package...
+      - curl -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.29.10/2024-11-15/bin/linux/amd64/kubectl
+      - chmod 777 kubectl
+      - mv kubectl /usr/bin
+  pre_build:
+    commands:
+      - AccountID=$(aws sts get-caller-identity --query "Account" --output text)
+      - ECR_NAME="skills-ecr"
+      - aws ecr get-login-password --region ap-northeast-2 | docker login --username AWS --password-stdin $AccountID.dkr.ecr.ap-northeast-2.amazonaws.com
+      - IMAGE_URI=$AccountID.dkr.ecr.ap-northeast-2.amazonaws.com/$ECR_NAME
+      - IMAGE_TAG=$(date -d "+9 hours" "+%Y-%m-%d.%H.%M.%S")
+  build:
+    commands:
+      - echo Building the Docker image...
+      - echo Building the Docker image...
+      - docker build -t $IMAGE_URI:$IMAGE_TAG ./
+      - echo Pushing the Docker images...
+      - docker push $IMAGE_URI:$IMAGE_TAG
+  post_build:
+    commands:
+      - echo Writing image definition file...
+      - EKS_CLUSTER_NAME="skills-eks-cluster"
+      - sed -i "s|IMAGE|$IMAGE_URI:$IMAGE_TAG|g" ./manifest/deployment.yaml
+      - aws eks --region ap-northeast-2 update-kubeconfig --name $EKS_CLUSTER_NAME
+      - kubectl apply -f ./manifest/deployment.yaml

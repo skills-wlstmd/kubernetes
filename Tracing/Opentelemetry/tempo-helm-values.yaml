@@ -1,0 +1,23 @@
+global_overrides:
+  metrics_generator_processors:
+    - service-graphs
+metricsGenerator:
+  config:
+    storage:
+      remote_write:
+        - send_exemplars: true
+          url: http://MIMIR_ENDPOINT.svc:80/api/v1/push
+  enabled: true
+storage:
+  trace:
+    backend: s3
+    s3:
+      bucket: BUCKET_NAME
+      endpoint: s3.ap-northeast-2.amazonaws.com
+      prefix: tempo
+traces:
+  otlp:
+    grpc:
+      enabled: true
+    http:
+      enabled: true

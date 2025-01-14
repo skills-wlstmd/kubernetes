@@ -1,0 +1,35 @@
+apiVersion: karpenter.sh/v1alpha5
+kind: Provisioner
+metadata:
+  name: default
+spec:
+  requirements:
+    - key: "node.kubernetes.io/instance-type"
+      operator: In
+      values: ["c5.large"]
+    - key: karpenter.sh/capacity-type
+      operator: In
+      values: ["on-demand"]
+    - key: "topology.kubernetes.io/zone"
+      operator: In
+      values: ["ap-northeast-2a", "ap-northeast-2b"]
+  providerRef:
+    name: test
+  ttlSecondsAfterEmpty: 30
+---
+apiVersion: karpenter.k8s.aws/v1alpha1
+kind: AWSNodeTemplate
+metadata:
+  name: test
+spec:
+  subnetSelector:
+    karpenter.sh/discovery: "skills-eks-cluster"
+  securityGroupSelector:
+    karpenter.sh/discovery: "skills-eks-cluster"
+  instanceProfile: KarpenterNodeInstanceProfile-skills-eks
+  blockDeviceMappings:
+    - deviceName: /dev/xvda
+      ebs:
+        volumeSize: 20Gi
+        volumeType: gp3
+        encrypted: true

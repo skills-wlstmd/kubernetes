@@ -1,0 +1,25 @@
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: enforceimagelist
+metadata:
+  name: k8senforceallowlistedimages
+spec:
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Pod"]
+  parameters:
+    images:
+      - 362708816803.dkr.ecr.$AWS_REGION.amazonaws.com/eks-security-shared
+      - amazon/aws-node-termination-handler
+      - amazon/aws-alb-ingress-controller
+      - amazon/aws-efs-csi-driver
+      - amazon/cloudwatch-agent
+      - docker.io/amazon/aws-alb-ingress-controller
+      - grafana/grafana
+      - prom/alertmanager
+      - prom/prometheus
+      - openpolicyagent/gatekeeper
+      - amazon/aws-cli
+      - busybox
+      - nginx
+      - falco

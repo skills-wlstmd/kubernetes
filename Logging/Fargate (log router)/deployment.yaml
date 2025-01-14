@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: skills-app-deployment
+  namespace: skills
+spec:
+  selector:
+    matchLabels:
+      app: skills-app
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: skills-app
+    spec:
+      containers:
+        - name: skills-app
+          image: 362708816803.dkr.ecr.ap-northeast-2.amazonaws.com/skills-app:latest
+          ports:
+            - containerPort: 8080
+          imagePullPolicy: Always

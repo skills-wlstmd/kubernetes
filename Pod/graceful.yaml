@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: nginx
+  name: nginx
+spec:
+  containers:
+    - name: nginx
+      image: nginx:latest
+      lifecycle:
+        preStop:
+          exec:
+            command:
+              - sh
+              - -c
+              - |
+                curl localhost:80
+                sleep 10
+                curl localhost:80
+  terminationGracePeriodSeconds: 15

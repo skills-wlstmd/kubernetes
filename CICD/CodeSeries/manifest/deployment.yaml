@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: skills-deployment
+  namespace: skills
+  labels:
+    skills: app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      skills: app
+  template:
+    metadata:
+      labels:
+        skills: app
+    spec:
+      containers:
+        - image: IMAGE
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "250m"
+            limits:
+              memory: "80Mi"
+              cpu: "300m"
+          name: skills-app-container
+          ports:
+            - containerPort: 8080
+  strategy:
+    type: Recreate

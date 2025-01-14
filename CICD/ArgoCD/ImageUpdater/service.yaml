@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: skills-service
+  namespace: default
+  labels:
+    skills: app
+spec:
+  selector:
+    skills: app
+  type: ClusterIP
+  ports:
+    - name: skills
+      protocol: TCP
+      port: 80
+      targetPort: 80

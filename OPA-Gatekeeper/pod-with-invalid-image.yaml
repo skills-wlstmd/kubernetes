@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: invalid-image
+  labels:
+    app: invalid-image
+  namespace: default
+spec:
+  containers:
+    - image: docker:latest
+      command:
+        - sleep
+        - "3600"
+      imagePullPolicy: IfNotPresent
+      name: invalid-docker
+  restartPolicy: Always

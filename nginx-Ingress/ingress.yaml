@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ingress-nginx
+  namespace: app
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          - path: /v1/dummy
+            pathType: Prefix
+            backend:
+              service:
+                name: skills-service-a
+                port:
+                  number: 8080
+          - path: /healthcheck
+            pathType: Prefix
+            backend:
+              service:
+                name: skills-service-b
+                port:
+                  number: 8080

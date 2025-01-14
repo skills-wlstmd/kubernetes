@@ -1,0 +1,35 @@
+exporters:
+  prometheusremotewrite:
+    endpoint: "http://mimir-nginx.mimir.svc:80/api/v1/push"
+  otlp:
+    endpoint: tempo-distributor-discovery.tempo:4317
+    tls:
+      insecure: true
+  batch: {}
+  memory_limiter:
+    check_interval: 5s
+    limit_percentage: 80
+    spike_limit_percentage: 25
+receivers:
+  otlp:
+    protocols:
+      http:
+      grpc:
+service:
+  pipelines:
+    traces:
+      exporters:
+        - otlp
+      processors:
+        - memory_limiter
+        - batch
+      receivers:
+        - otlp
+    metrics:
+      exporters:
+        - prometheusremotewrite
+      processors:
+        - memory_limiter
+        - batch
+      receivers:
+        - otlp
