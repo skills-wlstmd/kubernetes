@@ -1,0 +1,52 @@
+apiVersion: karpenter.sh/v1alpha5
+kind: Provisioner
+metadata:
+  name: apps
+spec:
+  requirements:
+    - key: karpenter.k8s.aws/instance-size
+      operator: NotIn
+      values: [nano, micro, small] # Instance Size
+    - key: "node.kubernetes.io/instance-type"
+      operator: In
+      values: ["c5.large"] # Instance Type
+    - key: "kubernetes.io/arch"
+      operator: In
+      values: ["amd64"]
+    - key: "karpenter.sh/capacity-type"
+      operator: In
+      values: ["on-demand"] # ["on-demand", "spot"]
+    - key: "topology.kubernetes.io/zone" # AZ
+      operator: In
+      values: ["ap-northeast-2a", "ap-northeast-2b"]
+  providerRef:
+    name: apps-provider
+  taints:
+    - key: dedicated
+      value: app
+      effect: NoSchedule
+  ttlSecondsAfterEmpty: 300
+  # ttlSecondsUntilExpired: 2592000        # 30 Days = 60 * 60 * 24 * 30 Seconds;
+---
+apiVersion: karpenter.k8s.aws/v1alpha1
+kind: AWSNodeTemplate
+metadata:
+  name: apps-provider
+spec:
+  amiFamily: Bottlerocket
+  subnetSelector: # required
+    karpenter.sh/discovery: br-eks-cluster
+  securityGroupSelector: # required, when not using launchTemplate
+    karpenter.sh/discovery: br-eks-cluster
+  blockDeviceMappings:
+    - deviceName: /dev/xvda
+      ebs:
+        volumeType: gp3
+        volumeSize: 20Gi
+        deleteOnTermination: true
+  # userData: ""
+  metadataOptions:
+    httpEndpoint: enabled
+    httpProtocolIPv6: disabled
+    httpPutResponseHopLimit: 2
+    httpTokens: required

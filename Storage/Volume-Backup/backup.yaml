@@ -1,0 +1,21 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ebs-snapshot-cronjob
+  namespace: skills
+spec:
+  schedule: "*/10 * * * *" # 10분마다 실행
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: ebs-snapshot
+              image: amazon/aws-cli
+              command:
+                [
+                  "sh",
+                  "-c",
+                  "aws ec2 create-snapshot --volume-id EBS_ID --description 'Automated backup'",
+                ]
+          restartPolicy: OnFailure

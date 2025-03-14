@@ -1,0 +1,1286 @@
+---
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "AWS VPC Lattice Workshop"
+
+Parameters:
+  EnvironmentName:
+    Description: LatticeWorkshop
+    Default: LatticeWorkshop
+    Type: String
+
+  AmiID:
+    Description: ID of the latest Amazon Linux 2 AMI
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
+
+  VPCACIDR:
+    Type: String
+    Default: 10.0.0.0/16
+
+  VPCASubnet1CIDR:
+    Type: String
+    Default: 10.0.0.0/24
+
+  VPCASubnet2CIDR:
+    Type: String
+    Default: 10.0.1.0/24
+
+  VPCASubnet3CIDR:
+    Type: String
+    Default: 10.0.2.0/24
+
+  VPCASubnet4CIDR:
+    Type: String
+    Default: 10.0.3.0/24
+
+  VPCASubnet5CIDR:
+    Type: String
+    Default: 10.0.4.0/24
+
+  VPCASubnet6CIDR:
+    Type: String
+    Default: 10.0.5.0/24
+
+  VPCBCIDR:
+    Type: String
+    Default: 10.0.0.0/16
+
+  VPCBSubnet1CIDR:
+    Type: String
+    Default: 10.0.0.0/24
+
+  VPCBSubnet2CIDR:
+    Type: String
+    Default: 10.0.1.0/24
+
+  VPCBSubnet3CIDR:
+    Type: String
+    Default: 10.0.2.0/24
+
+  VPCBSubnet4CIDR:
+    Type: String
+    Default: 10.0.3.0/24
+
+  VPCBSubnet5CIDR:
+    Type: String
+    Default: 10.0.4.0/24
+
+  VPCBSubnet6CIDR:
+    Type: String
+    Default: 10.0.5.0/24
+
+  VPCCCIDR:
+    Type: String
+    Default: 10.0.0.0/16
+
+  VPCCSubnet1CIDR:
+    Type: String
+    Default: 10.0.0.0/24
+
+  VPCCSubnet2CIDR:
+    Type: String
+    Default: 10.0.1.0/24
+
+  VPCDCIDR:
+    Type: String
+    Default: 10.0.0.0/16
+
+  VPCDSubnet1CIDR:
+    Type: String
+    Default: 10.0.0.0/24
+
+  VPCDSubnet2CIDR:
+    Type: String
+    Default: 10.0.1.0/24
+
+  InstanceType:
+    Type: String
+    Default: t3.small
+
+  LambdaFunctionName:
+    Type: String
+    MinLength: "1"
+    MaxLength: "64"
+    AllowedPattern: "[a-zA-Z][a-zA-Z0-9_-]*"
+    Description: The name of the Lambda function to be deployed
+    Default: LatticeReservationLambda
+  LambdaRoleName:
+    Type: String
+    MinLength: "1"
+    MaxLength: "64"
+    AllowedPattern: '[\w+=,.@-]+'
+    Description: The name of the IAM role used as the Lambda execution role
+    Default: Lattice-Lambda-Role
+  LambdaPolicyName:
+    Type: String
+    MinLength: "1"
+    MaxLength: "128"
+    AllowedPattern: '[\w+=,.@-]+'
+    Default: Lattice-Lambda-Policy
+
+Resources:
+  IamRoleLambdaCFn:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Description: Provides permissions for Lambda to deploy VPC/CloudWAN resources in Primary region.
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
+
+  # Create Role policy and log-group for Lambda
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref LambdaRoleName
+      Description: An execution role for a Lambda function launched by CloudFormation
+      ManagedPolicyArns:
+        - !Ref LambdaPolicy
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action:
+              - "sts:AssumeRole"
+
+  LambdaPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Ref LambdaPolicyName
+      Description: Managed policy for a Lambda function launched by CloudFormation
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - "ec2:DescribeNetworkInterfaces"
+              - "ec2:CreateNetworkInterface"
+              - "ec2:DeleteNetworkInterface"
+              - "ec2:DescribeInstances"
+              - "ec2:AttachNetworkInterface"
+              - "vpc-lattice-svcs:Invoke"
+            Resource: "*"
+          - Effect: Allow
+            Action:
+              - "logs:CreateLogStream"
+              - "logs:PutLogEvents"
+            Resource:
+              !Join [
+                "",
+                [
+                  "arn:",
+                  !Ref AWS::Partition,
+                  ":logs:",
+                  !Ref AWS::Region,
+                  ":",
+                  !Ref AWS::AccountId,
+                  ":log-group:/aws/lambda/",
+                  !Ref LambdaFunctionName,
+                  ":*",
+                ],
+              ]
+          - Effect: Allow
+            Action:
+              - "logs:CreateLogGroup"
+            Resource: !Sub "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:*"
+
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Join ["", ["/aws/lambda/", !Ref LambdaFunctionName]]
+      RetentionInDays: 30
+
+  superappsvcnetworkLogsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Join
+        - ""
+        - - "superappsvcnetworklogs"
+          - !Ref AWS::AccountId
+
+  superappsvcnetworkLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: "/latticeworkshop/parking-svc-logs"
+
+  # Create Client VPC and Resources
+  VPCA:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VPCACIDR
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-Clients-VPC
+
+  InternetGatewayVPCA:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Ref EnvironmentName
+
+  InternetGatewayAttachmentVPCA:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGatewayVPCA
+      VpcId: !Ref VPCA
+
+  # create publilc subnets
+  VPCAPublicSubnetClient1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPCA
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: !Ref VPCASubnet1CIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-Client-PublicSubnet01"
+        - Key: kubernetes.io/role/elb
+          Value: 1
+        - Key: platform:visibility
+          Value: public
+
+  VPCAPublicSubnetClient2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPCA
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      CidrBlock: !Ref VPCASubnet2CIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-Client-PublicSubnet02"
+        - Key: kubernetes.io/role/elb
+          Value: 1
+        - Key: platform:visibility
+          Value: public
+
+  VPCAPublicSubnetClient3:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPCA
+      AvailabilityZone: !Select [2, !GetAZs ""]
+      CidrBlock: !Ref VPCASubnet3CIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-Client-PublicSubnet03"
+        - Key: kubernetes.io/role/elb
+          Value: 1
+        - Key: platform:visibility
+          Value: public
+
+  VPCAPrivateSubnetClient1:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      VpcId: !Ref VPCA
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      MapPublicIpOnLaunch: false
+      CidrBlock: !Ref VPCASubnet4CIDR
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-Client-PrivateSubnet01"
+        - Key: kubernetes.io/role/internal-elb
+          Value: 1
+        - Key: platform:visibility
+          Value: private
+
+  VPCAPrivateSubnetClient2:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      VpcId: !Ref VPCA
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      MapPublicIpOnLaunch: false
+      CidrBlock: !Ref VPCASubnet5CIDR
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-Client-PrivateSubnet02"
+        - Key: kubernetes.io/role/internal-elb
+          Value: 1
+        - Key: platform:visibility
+          Value: private
+
+  VPCAPrivateSubnetClient3:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      VpcId: !Ref VPCA
+      AvailabilityZone: !Select [2, !GetAZs ""]
+      MapPublicIpOnLaunch: false
+      CidrBlock: !Ref VPCASubnet6CIDR
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-Client-PrivateSubnet03"
+        - Key: kubernetes.io/role/internal-elb
+          Value: 1
+        - Key: platform:visibility
+          Value: private
+
+  # create public route table route traffic to igw and associate with public subnets
+  VPCAPublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPCA
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-Client-Public-RT
+
+  VPCADefaultPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachmentVPCA
+    Properties:
+      RouteTableId: !Ref VPCAPublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGatewayVPCA
+
+  VPCAPublicSubnetRouteTableAssociationClient1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref VPCAPublicRouteTable
+      SubnetId: !Ref VPCAPublicSubnetClient1
+
+  VPCAPublicSubnetRouteTableAssociationClient2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref VPCAPublicRouteTable
+      SubnetId: !Ref VPCAPublicSubnetClient2
+
+  VPCAPublicSubnetRouteTableAssociationClient3:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref VPCAPublicRouteTable
+      SubnetId: !Ref VPCAPublicSubnetClient3
+
+  VPCANATEIP:
+    DependsOn: InternetGatewayAttachmentVPCA
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-Client-VPC-NAT-EIP
+        - Key: platform:visibility
+          Value: public
+
+  VPCANATGW:
+    Type: "AWS::EC2::NatGateway"
+    Properties:
+      AllocationId: !GetAtt VPCANATEIP.AllocationId
+      SubnetId: !Ref VPCAPublicSubnetClient1
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-Client-VPC-NATGW
+
+  VPCAPrivateRouteTable:
+    Type: "AWS::EC2::RouteTable"
+    Properties:
+      VpcId: !Ref VPCA
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-Client-Private-RT
+
+  VPCAPrivateRouteTableNatRoute:
+    Type: "AWS::EC2::Route"
+    DependsOn: VPCAPrivateRouteTable
+    Properties:
+      RouteTableId: !Ref VPCAPrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref VPCANATGW
+
+  VPCAPrivateSubnetRouteTableAssociationClient1:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    DependsOn: VPCAPrivateRouteTable
+    Properties:
+      SubnetId: !Ref VPCAPrivateSubnetClient1
+      RouteTableId: !Ref VPCAPrivateRouteTable
+
+  VPCAPrivateSubnetRouteTableAssociationClient2:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    DependsOn: VPCAPrivateRouteTable
+    Properties:
+      SubnetId: !Ref VPCAPrivateSubnetClient2
+      RouteTableId: !Ref VPCAPrivateRouteTable
+
+  VPCAPrivateSubnetRouteTableAssociationClient3:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    DependsOn: VPCAPrivateRouteTable
+    Properties:
+      SubnetId: !Ref VPCAPrivateSubnetClient3
+      RouteTableId: !Ref VPCAPrivateRouteTable
+
+  InvokeLattice:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: InvokeLatticePolicy
+      Description: Managed policy for a instances to invoke vpc-lattice
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - "vpc-lattice-svcs:Invoke"
+            Resource: "*"
+
+  # SSM Role:
+  SSMRole:
+    DependsOn: InvokeLattice
+    Type: AWS::IAM::Role
+    Properties:
+      Path: "/"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+        - !Ref InvokeLattice
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+
+  InstanceProfile:
+    DependsOn: SSMRole
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: "/"
+      Roles:
+        - !Ref SSMRole
+
+  # create security groups allowing all ingress ipv4/ssh traffic
+  VPCASecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: "clients-sg"
+      GroupDescription: "Allow all for workshop"
+      VpcId: !Ref VPCA
+
+  VPCASecurityGroupIngress1:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: "Allow Lattice"
+      GroupId: !Ref VPCASecurityGroup
+      IpProtocol: tcp
+      FromPort: 22
+      ToPort: 22
+      CidrIp: 0.0.0.0/0
+
+  VPCASecurityGroupIngress2:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: "Allow Lattice"
+      GroupId: !Ref VPCASecurityGroup
+      IpProtocol: -1
+      CidrIp: 169.254.0.0/16
+
+  VPCASecurityGroupIngress3:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: "Allow Lattice"
+      GroupId: !Ref VPCASecurityGroup
+      IpProtocol: -1
+      CidrIp: 10.0.0.0/16
+
+  NewKeyPair:
+    Type: "AWS::EC2::KeyPair"
+    Properties:
+      KeyName: !Ref EnvironmentName
+
+  InstanceClient1:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref "InstanceType"
+      ImageId: !Ref AmiID
+      KeyName: !Ref NewKeyPair
+      IamInstanceProfile: !Ref InstanceProfile
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: "true"
+          DeviceIndex: "0"
+          GroupSet:
+            - Ref: "VPCASecurityGroup"
+          SubnetId:
+            Ref: "VPCAPublicSubnetClient1"
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          sudo su
+          cd /usr/bin
+          sudo ln -s /home/ssm-user/.local/bin/httpie
+          sudo ln -s /home/ssm-user/.local/bin/https
+          sudo ln -s /home/ssm-user/.local/bin/http
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-InstanceClient1
+
+  InstanceClient2:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref "InstanceType"
+      ImageId: !Ref AmiID
+      KeyName: !Ref NewKeyPair
+      IamInstanceProfile: !Ref InstanceProfile
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: "true"
+          DeviceIndex: "0"
+          GroupSet:
+            - Ref: "VPCASecurityGroup"
+          SubnetId:
+            Ref: "VPCAPublicSubnetClient2"
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          sudo su
+          cd /usr/bin
+          sudo ln -s /home/ssm-user/.local/bin/httpie
+          sudo ln -s /home/ssm-user/.local/bin/https
+          sudo ln -s /home/ssm-user/.local/bin/http
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-InstanceClient2
+
+  # Create Rates VPC and Resources
+  VPCB:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VPCBCIDR
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-Rates-VPC
+
+  InternetGatewayVPCB:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Ref EnvironmentName
+
+  InternetGatewayAttachmentVPCB:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGatewayVPCB
+      VpcId: !Ref VPCB
+
+  # create publilc subnets
+  VPCBPublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPCB
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: !Ref VPCBSubnet1CIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-Rates-PublicSubnet01
+        - Key: platform:visibility
+          Value: public
+
+  VPCBPublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPCB
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      CidrBlock: !Ref VPCBSubnet2CIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-Rates-PublicSubnet02
+        - Key: platform:visibility
+          Value: public
+
+  VPCBPublicSubnet3:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPCB
+      AvailabilityZone: !Select [2, !GetAZs ""]
+      CidrBlock: !Ref VPCBSubnet3CIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-Rates-PublicSubnet03
+        - Key: platform:visibility
+          Value: public
+
+  VPCBPrivateSubnet1:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      VpcId: !Ref VPCB
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      MapPublicIpOnLaunch: false
+      CidrBlock: !Ref VPCBSubnet4CIDR
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-Rates-PrivateSubnet01
+        - Key: platform:visibility
+          Value: private
+
+  VPCBPrivateSubnet2:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      VpcId: !Ref VPCB
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      MapPublicIpOnLaunch: false
+      CidrBlock: !Ref VPCBSubnet5CIDR
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-Rates-PrivateSubnet02
+        - Key: platform:visibility
+          Value: private
+
+  VPCBPrivateSubnet3:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      VpcId: !Ref VPCB
+      AvailabilityZone: !Select [2, !GetAZs ""]
+      MapPublicIpOnLaunch: false
+      CidrBlock: !Ref VPCBSubnet6CIDR
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-Rates-PrivateSubnet03
+        - Key: platform:visibility
+          Value: private
+
+  VPCBPublicSubnetRouteTableAssociation3:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref VPCBPublicRouteTable
+      SubnetId: !Ref VPCBPublicSubnet3
+
+  VPCBNATEIP:
+    DependsOn: InternetGatewayAttachmentVPCA
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-Rates-VPC-NATEIP
+        - Key: platform:visibility
+          Value: public
+
+  VPCBNATGW:
+    Type: "AWS::EC2::NatGateway"
+    Properties:
+      AllocationId: !GetAtt VPCBNATEIP.AllocationId
+      SubnetId: !Ref VPCBPublicSubnet1
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-Rates-VPC-NATGW
+
+  VPCBPrivateRouteTable:
+    Type: "AWS::EC2::RouteTable"
+    Properties:
+      VpcId: !Ref VPCB
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-Rates-VPC-Private-RT
+
+  VPCBPrivateRouteTableNatRoute:
+    Type: "AWS::EC2::Route"
+    DependsOn: VPCBPrivateRouteTable
+    Properties:
+      RouteTableId: !Ref VPCBPrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref VPCBNATGW
+
+  VPCBPrivateSubnetRouteTableAssociation1:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    DependsOn: VPCBPrivateRouteTable
+    Properties:
+      SubnetId: !Ref VPCBPrivateSubnet1
+      RouteTableId: !Ref VPCBPrivateRouteTable
+
+  VPCBPrivateSubnetRouteTableAssociation2:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    DependsOn: VPCBPrivateRouteTable
+    Properties:
+      SubnetId: !Ref VPCBPrivateSubnet2
+      RouteTableId: !Ref VPCBPrivateRouteTable
+
+  VPCBPrivateSubnetRouteTableAssociation3:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    DependsOn: VPCBPrivateRouteTable
+    Properties:
+      SubnetId: !Ref VPCBPrivateSubnet3
+      RouteTableId: !Ref VPCBPrivateRouteTable
+
+  # create public route table route traffic to igw and associate with public subnets
+  VPCBPublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPCB
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-Rates-VPC-Public-RT
+
+  VPCBDefaultPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachmentVPCB
+    Properties:
+      RouteTableId: !Ref VPCBPublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGatewayVPCB
+
+  VPCBPublicSubnetRouteTableAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref VPCBPublicRouteTable
+      SubnetId: !Ref VPCBPublicSubnet1
+
+  VPCBPublicSubnetRouteTableAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref VPCBPublicRouteTable
+      SubnetId: !Ref VPCBPublicSubnet2
+
+  # create security groups allowing all ingress ipv4/ssh traffic
+  VPCBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: "rates-sg"
+      GroupDescription: "Allow all for workshop"
+      VpcId: !Ref VPCB
+
+  VPCBSecurityGroupIngress1:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: "Allow Lattice"
+      GroupId: !Ref VPCBSecurityGroup
+      IpProtocol: tcp
+      FromPort: 22
+      ToPort: 22
+      CidrIp: 0.0.0.0/0
+
+  VPCBSecurityGroupIngress2:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: "Allow Lattice"
+      GroupId: !Ref VPCBSecurityGroup
+      IpProtocol: -1
+      CidrIp: 169.254.0.0/16
+
+  VPCBSecurityGroupIngress3:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: "Allow Lattice"
+      GroupId: !Ref VPCBSecurityGroup
+      IpProtocol: -1
+      CidrIp: 10.0.0.0/16
+
+  RatesLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: !Sub ${EnvironmentName}-rates-launch-template
+      LaunchTemplateData:
+        ImageId: !Ref AmiID
+        InstanceType: !Ref "InstanceType"
+        IamInstanceProfile:
+          Name: !Ref InstanceProfile
+        SecurityGroupIds:
+          - !GetAtt VPCBSecurityGroup.GroupId
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            sudo su
+            wget https://d3fh841oeihish.cloudfront.net/dummy-service
+            chmod +x dummy-service
+            echo $'[Unit]\nDescription=dummy-service\nAfter=network.target\n\n[Service]\nType=simple\nWorkingDirectory=/\nExecStart=/dummy-service\nExecReload=/bin/kill -HUP $MAINPID\nRestart=always\nStandardOutput=syslog\nStandardError=syslog\nSyslogIdentifier=dummy-service\nUser=root\nGroup=root\nEnvironment=SERVICE_NAME="rates"\n\n[Install]\nWantedBy=multi-user.target\n' > /etc/systemd/system/dummy-service.service
+            systemctl start dummy-service
+  RatesASG:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    DependsOn:
+      - VPCBPublicSubnet1
+      - VPCBPublicSubnet2
+      - RatesLaunchTemplate
+    Properties:
+      VPCZoneIdentifier:
+        - !Ref VPCBPublicSubnet1
+        - !Ref VPCBPublicSubnet2
+      LaunchTemplate:
+        LaunchTemplateId: !Ref RatesLaunchTemplate
+        Version: !GetAtt RatesLaunchTemplate.LatestVersionNumber
+      MaxSize: "1"
+      MinSize: "1"
+      DesiredCapacity: "1"
+      Tags:
+        - Key: Name
+          PropagateAtLaunch: True
+          Value: !Sub ${EnvironmentName}-Rates
+
+  # Create Payments VPC and Resources
+  VPCC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VPCCCIDR
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-Payments-VPC
+
+  InternetGatewayVPCC:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Ref EnvironmentName
+
+  InternetGatewayAttachmentVPCC:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGatewayVPCC
+      VpcId: !Ref VPCC
+
+  # create publilc subnets
+  VPCCPublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPCC
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: !Ref VPCCSubnet1CIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-Payments-PublicSubnet01
+
+  VPCCPublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPCC
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      CidrBlock: !Ref VPCCSubnet2CIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-Payments-PublicSubnet02
+
+  # create public route table route traffic to igw and associate with public subnets
+  VPCCPublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPCC
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-Payments-Public-RT
+
+  VPCCDefaultPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachmentVPCC
+    Properties:
+      RouteTableId: !Ref VPCCPublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGatewayVPCC
+
+  VPCCPublicSubnetRouteTableAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref VPCCPublicRouteTable
+      SubnetId: !Ref VPCCPublicSubnet1
+
+  VPCCPublicSubnetRouteTableAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref VPCCPublicRouteTable
+      SubnetId: !Ref VPCCPublicSubnet2
+
+  VPCCSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: "payments-sg"
+      GroupDescription: "Allow all for workshop"
+      VpcId: !Ref VPCC
+
+  VPCCSecurityGroupIngress1:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: "Allow Lattice"
+      GroupId: !Ref VPCCSecurityGroup
+      IpProtocol: tcp
+      FromPort: 22
+      ToPort: 22
+      CidrIp: 0.0.0.0/0
+
+  VPCCSecurityGroupIngress2:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: "Allow Lattice"
+      GroupId: !Ref VPCCSecurityGroup
+      IpProtocol: -1
+      CidrIp: 169.254.0.0/16
+
+  VPCCSecurityGroupIngress3:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: "Allow Lattice"
+      GroupId: !Ref VPCCSecurityGroup
+      IpProtocol: -1
+      CidrIp: 10.0.0.0/16
+
+  PaymentsPrivateALB:
+    Type: "AWS::ElasticLoadBalancingV2::LoadBalancer"
+    Properties:
+      Scheme: internal
+      Subnets:
+        - !Ref VPCCPublicSubnet1
+        - !Ref VPCCPublicSubnet2
+      SecurityGroups:
+        - !Ref VPCCSecurityGroup
+
+  PaymentsTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: payments-target-group
+      Port: 4242
+      Protocol: HTTP
+      TargetType: instance
+      VpcId: !Ref VPCC
+
+  PaymentsListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref PaymentsPrivateALB
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref PaymentsTargetGroup
+
+  PaymentsLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: !Sub ${EnvironmentName}-payments-launch-template
+      LaunchTemplateData:
+        ImageId: !Ref AmiID
+        InstanceType: !Ref "InstanceType"
+        IamInstanceProfile:
+          Name: !Ref InstanceProfile
+        SecurityGroupIds:
+          - !GetAtt VPCCSecurityGroup.GroupId
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            sudo su
+            wget https://d3fh841oeihish.cloudfront.net/dummy-service
+            chmod +x dummy-service
+            echo $'[Unit]\nDescription=dummy-service\nAfter=network.target\n\n[Service]\nType=simple\nWorkingDirectory=/\nExecStart=/dummy-service\nExecReload=/bin/kill -HUP $MAINPID\nRestart=always\nStandardOutput=syslog\nStandardError=syslog\nSyslogIdentifier=dummy-service\nUser=root\nGroup=root\nEnvironment=SERVICE_NAME="payments"\n\n[Install]\nWantedBy=multi-user.target\n' > /etc/systemd/system/dummy-service.service
+            systemctl start dummy-service
+  PaymentsASG:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    DependsOn:
+      - VPCCPublicSubnet1
+      - VPCCPublicSubnet2
+      - PaymentsLaunchTemplate
+      - PaymentsPrivateALB
+    Properties:
+      VPCZoneIdentifier:
+        - !Ref VPCCPublicSubnet1
+        - !Ref VPCCPublicSubnet2
+      LaunchTemplate:
+        LaunchTemplateId: !Ref PaymentsLaunchTemplate
+        Version: !GetAtt PaymentsLaunchTemplate.LatestVersionNumber
+      MaxSize: "1"
+      MinSize: "1"
+      DesiredCapacity: "1"
+      TargetGroupARNs:
+        - !Ref PaymentsTargetGroup
+      Tags:
+        - Key: Name
+          PropagateAtLaunch: True
+          Value: !Sub ${EnvironmentName}-Payments-TG
+
+  # Create Reservation Lambda VPC and Resources
+  VPCD:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VPCDCIDR
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-Reservations-VPC
+
+  InternetGatewayVPCD:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Ref EnvironmentName
+
+  InternetGatewayAttachmentVPCD:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGatewayVPCD
+      VpcId: !Ref VPCD
+
+  # create publilc subnets
+  VPCDPublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPCD
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: !Ref VPCDSubnet1CIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-Reservations-PublicSubnet01
+
+  VPCDPublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPCD
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      CidrBlock: !Ref VPCDSubnet2CIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-Reservations-PublicSubnet02
+
+  # create public route table route traffic to igw and associate with public subnets
+  VPCDPublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPCD
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-Reservations-Public-RT
+
+  VPCDDefaultPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachmentVPCD
+    Properties:
+      RouteTableId: !Ref VPCDPublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGatewayVPCD
+
+  VPCDPublicSubnetRouteTableAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref VPCDPublicRouteTable
+      SubnetId: !Ref VPCDPublicSubnet1
+
+  VPCDPublicSubnetRouteTableAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref VPCDPublicRouteTable
+      SubnetId: !Ref VPCDPublicSubnet2
+
+  # create security groups allowing all ingress ipv4/ssh traffic
+  VPCDSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: "reservations-sg"
+      GroupDescription: "Allow all for workshop"
+      VpcId: !Ref VPCD
+
+  VPCDSecurityGroupIngress1:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: "Allow Lattice"
+      GroupId: !Ref VPCDSecurityGroup
+      IpProtocol: tcp
+      FromPort: 22
+      ToPort: 22
+      CidrIp: 0.0.0.0/0
+
+  VPCDSecurityGroupIngress2:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: "Allow Lattice"
+      GroupId: !Ref VPCDSecurityGroup
+      IpProtocol: -1
+      CidrIp: 169.254.0.0/16
+
+  VPCDSecurityGroupIngress3:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: "Allow Lattice"
+      GroupId: !Ref VPCDSecurityGroup
+      IpProtocol: -1
+      CidrIp: 10.0.0.0/16
+
+  LatticeReservationLambda:
+    DependsOn: VPCDPublicSubnetRouteTableAssociation2
+    Type: AWS::Lambda::Function
+    Properties:
+      VpcConfig:
+        SecurityGroupIds:
+          - Ref: VPCDSecurityGroup
+        SubnetIds:
+          - Ref: VPCDPublicSubnet1
+          - Ref: VPCDPublicSubnet2
+      FunctionName: !Ref LambdaFunctionName
+      Handler: index.lambda_handler
+      MemorySize: 128
+      Runtime: python3.8
+      Role: !GetAtt "LambdaRole.Arn"
+      Timeout: 240
+      Code:
+        ZipFile: |
+          import json
+          print('Loading function')
+          def lambda_handler(event, context):
+              #print("Received event: " + json.dumps(event, indent=2))
+              print("Hello from VPC Lattice Reservation Function" )
+              #raise Exception('Something went wrong')
+          def lambda_handler(event, context):
+              response = {
+              "statusCode": 200,
+              "statusDescription": "200 OK",
+              "isBase64Encoded": False,
+              "headers": {
+              "Content-Type": "text/html; charset=utf-8"
+              }
+              }
+
+              response['body'] = """<html>
+              <head>
+              <title>Hello From Lattice Reservations!</title>
+              <style>
+              html, body {
+              margin: 0; padding: 0;
+              font-family: arial; font-weight: 700; font-size: 3em;
+              text-align: center;
+              }
+              </style>
+              </head>
+              <body>
+              <p>Hello From Lattice Reservations!</p>
+              </body>
+              </html>"""
+              return response
+
+Outputs:
+  VPCA:
+    Description: A reference to the created VPC
+    Value: !Ref VPCA
+
+  VPCAPublicSubnets:
+    Description: A list of the public subnets
+    Value:
+      !Join [",", [!Ref VPCAPublicSubnetClient1, !Ref VPCAPublicSubnetClient2]]
+
+  VPCAPublicSubnetClient1:
+    Description: A reference to the public subnet in the 1st Availability Zone
+    Value: !Ref VPCAPublicSubnetClient1
+
+  VPCAPublicSubnetClient2:
+    Description: A reference to the public subnet in the 2nd Availability Zone
+    Value: !Ref VPCAPublicSubnetClient2
+
+  VPCASecurityGroup:
+    Description: Allow all for workshop
+    Value: !Ref VPCASecurityGroup
+
+  NewKeyPair:
+    Description: Generated key pair
+    Value: !Ref NewKeyPair
+
+  InstanceClient1:
+    Description: Client side instance
+    Value: !Ref InstanceClient1
+
+  InstanceClient2:
+    Description: Server side instance
+    Value: !Ref InstanceClient2
+
+  VPCB:
+    Description: A reference to the created VPC
+    Value: !Ref VPCB
+
+  VPCBPublicSubnets:
+    Description: A list of the public subnets
+    Value: !Join [",", [!Ref VPCBPublicSubnet1, !Ref VPCBPublicSubnet2]]
+
+  VPCBPublicSubnet1:
+    Description: A reference to the public subnet in the 1st Availability Zone
+    Value: !Ref VPCBPublicSubnet1
+
+  VPCBPublicSubnet2:
+    Description: A reference to the public subnet in the 2nd Availability Zone
+    Value: !Ref VPCBPublicSubnet2
+
+  VPCBSecurityGroup:
+    Description: Allow all for workshop
+    Value: !Ref VPCBSecurityGroup
+
+  RatesLaunchTemplate:
+    Description: Launch Template for Rates instances
+    Value: !Ref RatesLaunchTemplate
+
+  RatesASG:
+    Description: ASG for Rates service
+    Value: !Ref RatesASG
+
+  VPCC:
+    Description: A reference to the created VPC
+    Value: !Ref VPCC
+
+  VPCCPublicSubnets:
+    Description: A list of the public subnets
+    Value: !Join [",", [!Ref VPCCPublicSubnet1, !Ref VPCCPublicSubnet2]]
+
+  VPCCPublicSubnet1:
+    Description: A reference to the public subnet in the 1st Availability Zone
+    Value: !Ref VPCCPublicSubnet1
+
+  VPCCPublicSubnet2:
+    Description: A reference to the public subnet in the 2nd Availability Zone
+    Value: !Ref VPCCPublicSubnet2
+
+  VPCCSecurityGroup:
+    Description: Allow all for workshop
+    Value: !Ref VPCCSecurityGroup
+
+  PaymentsLaunchTemplate:
+    Description: Launch Template for Payments instances
+    Value: !Ref PaymentsLaunchTemplate
+
+  PaymentsASG:
+    Description: ASG for Rates service
+    Value: !Ref PaymentsASG
+
+  VPCD:
+    Description: A reference to the created VPC
+    Value: !Ref VPCD
+
+  VPCDPublicSubnets:
+    Description: A list of the public subnets
+    Value: !Join [",", [!Ref VPCDPublicSubnet1, !Ref VPCDPublicSubnet2]]
+
+  VPCDPublicSubnet1:
+    Description: A reference to the public subnet in the 1st Availability Zone
+    Value: !Ref VPCDPublicSubnet1
+
+  VPCDPublicSubnet2:
+    Description: A reference to the public subnet in the 2nd Availability Zone
+    Value: !Ref VPCDPublicSubnet2
+
+  VPCDSecurityGroup:
+    Description: Allow all for workshop
+    Value: !Ref VPCDSecurityGroup
+
+  LatticeReservationLambda:
+    Export:
+      Name: LatticeReservationLambdaArn
+    Value:
+      Fn::GetAtt: LatticeReservationLambda.Arn
+
+  superappsvcnetworkLogsBucket:
+    Description: S3 bucket for VPC Lattice Logs
+    Value: !Ref superappsvcnetworkLogsBucket
+
+  superappsvcnetworkLogGroup:
+    Description: CloudWatch LogGroup for VPC Lattice Logs
+    Value: !Ref superappsvcnetworkLogGroup

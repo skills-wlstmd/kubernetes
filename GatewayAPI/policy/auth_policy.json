@@ -1,0 +1,26 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "${InstanceClient1_IAM_ARN}"
+      },
+      "Action": "vpc-lattice-svcs:Invoke",
+      "Resource": "${parking_svc_arn}/rates"
+    },
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "${InstanceClient2_IAM_ARN}"
+      },
+      "Action": "vpc-lattice-svcs:Invoke",
+      "Resource": "${parking_svc_arn}/payments",
+      "Condition": {
+        "StringEquals": {
+          "vpc-lattice-svcs:RequestMethod": "GET"
+        }
+      }
+    }
+  ]
+}

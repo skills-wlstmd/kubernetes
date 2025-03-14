@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: b-pod
+  labels:
+    app: b-pod
+spec:
+  containers:
+    - name: b-container
+      image: nginx:latest

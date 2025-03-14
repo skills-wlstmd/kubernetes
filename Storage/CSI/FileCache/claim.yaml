@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: fc-claim
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: fc-sc
+  resources:
+    requests:
+      storage: 1200Gi

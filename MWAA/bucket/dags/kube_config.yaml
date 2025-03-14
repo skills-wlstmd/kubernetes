@@ -1,0 +1,29 @@
+apiVersion: v1
+clusters:
+  - cluster:
+      certificate-authority-data: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURCVENDQWUyZ0F3SUJBZ0lJZEVVVzNtbHQ0VU13RFFZSktvWklodmNOQVFFTEJRQXdGVEVUTUJFR0ExVUUKQXhNS2EzVmlaWEp1WlhSbGN6QWVGdzB5TlRBeE1qY3dOalV3TlRsYUZ3MHpOVEF4TWpVd05qVTFOVGxhTUJVeApFekFSQmdOVkJBTVRDbXQxWW1WeWJtVjBaWE13Z2dFaU1BMEdDU3FHU0liM0RRRUJBUVVBQTRJQkR3QXdnZ0VLCkFvSUJBUUMrcEpiaEdtbDZlL1dKTTFSOEdZZGN5L1lQU0s1Nnl1OTg1M0JXc0lVWjhKT25qRE5INzZYdzJVWXgKWXk2MXExSUFESGVmK0pxRjNjTm95Rm9nZXBNcW9WSDlxSnZxTU4wbEZhLzhYZE9Kd0dQb2g0NHB5aW1pV1FkdQpWQWJQNlFyUXpvZk9IdFZxVVVvUm1jb1NuQm9kREV5VzZKbDFMTWZCdDh3eEhDV0ZCYUI2TEVWTlFjV1JtREdsCjhERGcwZEdyNTNJZWVndGxWU0tGVmllS2lIb0dvTGhSZWlZM1A4V3REVHpzNnd6ay9BU3ByT3ZTQVgzYTdTS1YKblV5TWV2SGZxMGNiMnFvZGZ4RW43NjBGN2RnRHpobEtuWWl6aG9JU0c4SDgwL3NuNzFMNkRiRERKUFZGSmg5cQppQlJnQlhNUzJzWWVlMDcyRTJtS3ZtME4zczRiQWdNQkFBR2pXVEJYTUE0R0ExVWREd0VCL3dRRUF3SUNwREFQCkJnTlZIUk1CQWY4RUJUQURBUUgvTUIwR0ExVWREZ1FXQkJRUEllU25jUEp3QW9QeE83K3hNVmdpaFRlWGNqQVYKQmdOVkhSRUVEakFNZ2dwcmRXSmxjbTVsZEdWek1BMEdDU3FHU0liM0RRRUJDd1VBQTRJQkFRQkI3RUdiNm8rbgpPQzRDUWdMN0IrYjNFa1IzSW03aXNxTWluVVY1Syt5c21SaXZFY3NiMnQ3VTZ2YW5ZNEc4QUhsdkcyV3FJTnRXClk1Q0R3NXlIeXZtTnoxenRoejA4dzZYK1ZsdzVuQmNCYnNPa1JwbGhtUG5tbWUwUUd3REVRREV5b1I4a1dmR0EKNWF1MTlOK3dYUlJTeWR1ZmFsRlRCZExkZjJNN05QakszSW8wWnNnY2Z6QmV0Y3BvTnVuTDYxRzRvSExUVXVtVgpKMThHUFNnQVBIYWhNdGhTNllEaEsvd3dQVFEvcjJXNTQ1N24wcjNVZVQ2MGVHVENwQ2JYK2hvOE9ObnF6TVQ1Ck5FSlBKSTJUVlp3dXkxeWVwK3hMeDdtVDJ6djJHbUdCNGFNYkxXeHhZOWYvbjJ3c3JBekhtT2hSbFE2eGV4dDIKZkM1QUVsdEFWNGlHCi0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K
+      server: https://D1C3A827859FF35F029846CB204F07FA.yl4.ap-northeast-2.eks.amazonaws.com
+    name: arn:aws:eks:ap-northeast-2:362708816803:cluster/skills-eks-cluster
+contexts:
+  - context:
+      cluster: arn:aws:eks:ap-northeast-2:362708816803:cluster/skills-eks-cluster
+      user: arn:aws:eks:ap-northeast-2:362708816803:cluster/skills-eks-cluster
+    name: aws
+current-context: aws
+kind: Config
+preferences: {}
+users:
+  - name: arn:aws:eks:ap-northeast-2:362708816803:cluster/skills-eks-cluster
+    user:
+      exec:
+        apiVersion: client.authentication.k8s.io/v1beta1
+        args:
+          - --region
+          - ap-northeast-2
+          - eks
+          - get-token
+          - --cluster-name
+          - skills-eks-cluster
+          - --output
+          - json
+        command: aws

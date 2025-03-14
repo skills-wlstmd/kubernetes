@@ -1,0 +1,15 @@
+apiVersion: projectcalico.org/v3
+kind: NetworkPolicy
+metadata:
+  name: allow-communication-for-a-pod
+spec:
+  selector: app == 'a-pod'
+  egress:
+    - action: Allow
+  ingress:
+    - action: Allow
+      source:
+        selector: app == 'b-pod'
+    - action: Deny
+      source:
+        selector: app == 'c-pod'
